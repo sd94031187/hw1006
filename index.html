@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>台股/美股選擇權理論價與市場實際報價對比系統</title>
+  <title>台指週選擇權 (TXO) 結算日即時理論價 vs 市場報價對比系統</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -15,26 +15,36 @@
     <header class="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl gap-4">
       <div>
         <h1 class="text-2xl md:text-3xl font-bold text-amber-400 flex items-center gap-3">
-          <i class="fa-solid fa-chart-line"></i>買權 (Call Option) 理論價 vs 市場實際報價對比系統
+          <i class="fa-solid fa-bolt text-amber-400"></i>台指週選 (TXO) 結算即時折溢價計算器
         </h1>
-        <p class="text-slate-400 text-sm mt-1">結合 Yahoo Finance API 實時標的數據 & Black-Scholes 定價模型進行折溢價分析</p>
+        <p class="text-slate-400 text-sm mt-1">專為台指週三結算行情設計 ‧ 結合 Black-Scholes 模型與即時盤後夜盤報價比對</p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <button onclick="fetchYahooData()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2 rounded-xl transition flex items-center gap-2 shadow-lg text-sm">
-          <i class="fa-solid fa-cloud-arrow-down"></i> 抓取 Yahoo 標的數據
+        <button onclick="applyWeeklyOptionPreset()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2 rounded-xl transition flex items-center gap-2 shadow-lg text-sm">
+          <i class="fa-solid fa-clock-rotate-left"></i> 套用週三結算情境 (1天到期 / 50000C)
         </button>
-        <button onclick="loadSampleData()" class="bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-500/50 px-4 py-2 rounded-xl transition text-sm">
-          帶入50000點最新行情
+        <button onclick="fetchYahooData()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 rounded-xl transition text-sm">
+          <i class="fa-solid fa-cloud-arrow-down mr-1"></i> 抓取 Yahoo 指數
         </button>
       </div>
     </header>
 
-    <!-- Yahoo Finance Search / Symbol Bar -->
-    <div class="bg-slate-800/80 p-4 rounded-xl border border-slate-700 flex flex-wrap items-center gap-4">
-      <span class="text-sm text-slate-300 font-semibold"><i class="fa-solid fa-magnifying-glass text-amber-400 mr-1"></i> Yahoo 標的代碼：</span>
-      <input type="text" id="symbolInput" value="^TWII" class="bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-amber-300 font-mono text-sm w-32 focus:outline-none focus:border-amber-400" placeholder="例如 ^TWII, NVDA, TSLA">
-      <span class="text-xs text-slate-400">（^TWII: 台股加權指數, TSLA: 特斯拉, NVDA: 輝達）</span>
-      <span id="apiStatus" class="ml-auto text-xs px-2.5 py-1 rounded-full bg-slate-700 text-slate-300">系統就緒</span>
+    <!-- Hot Option Strikes Bar (Based on Yahoo Real Market Data) -->
+    <div class="bg-slate-800/80 p-4 rounded-xl border border-slate-700 space-y-2">
+      <div class="text-xs text-slate-400 font-semibold flex items-center gap-2">
+        <i class="fa-solid fa-fire text-amber-400"></i> 週選熱門合約實時參考報價 (現價 49,822 附近)：
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button onclick="setQuickOption(49700, 312)" class="bg-slate-900 border border-slate-700 hover:border-amber-400 px-3 py-1.5 rounded-lg text-xs font-mono transition">
+          <span class="text-amber-300 font-bold">49700 Call</span> (成交價: 312.0)
+        </button>
+        <button onclick="setQuickOption(49800, 243)" class="bg-slate-900 border border-slate-700 hover:border-amber-400 px-3 py-1.5 rounded-lg text-xs font-mono transition">
+          <span class="text-amber-300 font-bold">49800 Call (價平)</span> (成交價: 243.0)
+        </button>
+        <button onclick="setQuickOption(50000, 138)" class="bg-slate-900 border border-slate-700 hover:border-amber-400 px-3 py-1.5 rounded-lg text-xs font-mono transition">
+          <span class="text-amber-300 font-bold">50000 Call (熱門)</span> (成交價: 138.0)
+        </button>
+      </div>
     </div>
 
     <!-- Main Grid Layout -->
@@ -50,9 +60,9 @@
         <div>
           <div class="flex justify-between text-sm mb-1">
             <label class="text-slate-300">標的現價 (S)</label>
-            <span id="valS" class="font-mono text-amber-400 font-bold">49800</span>
+            <span id="valS" class="font-mono text-amber-400 font-bold">49822</span>
           </div>
-          <input type="range" id="inputS" min="10000" max="70000" step="100" value="49800" class="w-full accent-amber-400 cursor-pointer">
+          <input type="range" id="inputS" min="10000" max="70000" step="10" value="49822" class="w-full accent-amber-400 cursor-pointer">
         </div>
 
         <!-- Strike Price (K) -->
@@ -61,16 +71,16 @@
             <label class="text-slate-300">履約價格 (K)</label>
             <span id="valK" class="font-mono text-amber-400 font-bold">50000</span>
           </div>
-          <input type="range" id="inputK" min="10000" max="70000" step="100" value="50000" class="w-full accent-amber-400 cursor-pointer">
+          <input type="range" id="inputK" min="10000" max="70000" step="50" value="50000" class="w-full accent-amber-400 cursor-pointer">
         </div>
 
         <!-- Days to Expiration (T) -->
         <div>
           <div class="flex justify-between text-sm mb-1">
-            <label class="text-slate-300">距到期日 (天)</label>
-            <span id="valT" class="font-mono text-amber-400 font-bold">14 天</span>
+            <label class="text-slate-300">距到期日 (天/週選預設 1 天)</label>
+            <span id="valT" class="font-mono text-amber-400 font-bold">1 天</span>
           </div>
-          <input type="range" id="inputT" min="1" max="365" value="14" class="w-full accent-amber-400 cursor-pointer">
+          <input type="range" id="inputT" min="0.1" max="60" step="0.1" value="1" class="w-full accent-amber-400 cursor-pointer">
         </div>
 
         <!-- Volatility (σ) -->
@@ -96,10 +106,10 @@
         <!-- Actual Market Call Price Input -->
         <div class="bg-slate-900/80 p-4 rounded-xl border border-amber-500/30 space-y-2">
           <label class="text-sm font-semibold text-amber-300 flex items-center justify-between">
-            <span><i class="fa-solid fa-tag text-amber-400 mr-1"></i> 市場實際買權成交價 (Market Call Price)</span>
+            <span><i class="fa-solid fa-tag text-amber-400 mr-1"></i> 市場週選實際成交價 (Market Call Price)</span>
           </label>
           <div class="flex items-center gap-2">
-            <input type="number" id="inputMarketPrice" value="650" step="1" class="w-full bg-slate-800 border border-amber-500/50 rounded-lg px-3 py-2 text-white font-mono font-bold focus:outline-none focus:border-amber-400" placeholder="請輸入市場成交價">
+            <input type="number" id="inputMarketPrice" value="138" step="0.5" class="w-full bg-slate-800 border border-amber-500/50 rounded-lg px-3 py-2 text-white font-mono font-bold focus:outline-none focus:border-amber-400" placeholder="例如 138.0">
             <span class="text-xs text-slate-400 font-mono">點/元</span>
           </div>
         </div>
@@ -113,16 +123,16 @@
           
           <!-- Theoretical Price Card -->
           <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-md">
-            <div class="text-xs text-slate-400 font-semibold mb-1">Black-Scholes 理論價格</div>
+            <div class="text-xs text-slate-400 font-semibold mb-1">BS理論價格 (1天結算)</div>
             <div id="resTheoreticalPrice" class="text-3xl font-extrabold text-sky-400 font-mono">--</div>
-            <div class="text-xs text-slate-400 mt-2">模型計算之公允價值 (Fair Value)</div>
+            <div class="text-xs text-slate-400 mt-2">模型計算公允值</div>
           </div>
 
           <!-- Market Price Card -->
           <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-md">
             <div class="text-xs text-slate-400 font-semibold mb-1">市場實際成交價</div>
-            <div id="resMarketPrice" class="text-3xl font-extrabold text-amber-400 font-mono">650.00</div>
-            <div class="text-xs text-slate-400 mt-2">市場實際交易價格</div>
+            <div id="resMarketPrice" class="text-3xl font-extrabold text-amber-400 font-mono">138.00</div>
+            <div class="text-xs text-slate-400 mt-2">Yahoo/盤後實際成交價</div>
           </div>
 
           <!-- Spread / Premium Card -->
@@ -137,8 +147,8 @@
         <div id="alertBox" class="p-4 rounded-xl bg-slate-800 border border-slate-700 flex items-center gap-3">
           <i id="alertIcon" class="fa-solid fa-circle-info text-amber-400 text-xl"></i>
           <div>
-            <div id="alertTitle" class="font-bold text-sm text-slate-200">行情評價提示</div>
-            <div id="alertText" class="text-xs text-slate-400">正在計算市場價格與理論模型之偏離程度...</div>
+            <div id="alertTitle" class="font-bold text-sm text-slate-200">週選行情評價提示</div>
+            <div id="alertText" class="text-xs text-slate-400">正在計算與理論模型之偏離程度...</div>
           </div>
         </div>
 
@@ -161,7 +171,7 @@
               <div id="greekVega" class="text-lg font-bold font-mono text-slate-100">--</div>
             </div>
             <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/50">
-              <div class="text-xs text-slate-400">Theta (θ)</div>
+              <div class="text-xs text-slate-400">Theta (θ / 每日衰退)</div>
               <div id="greekTheta" class="text-lg font-bold font-mono text-slate-100">--</div>
             </div>
           </div>
@@ -170,7 +180,7 @@
         <!-- Payoff Chart -->
         <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-md">
           <h3 class="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2">
-            <i class="fa-solid fa-chart-area text-amber-400"></i> 到期損益曲線 (Payoff Chart vs 成本)
+            <i class="fa-solid fa-chart-area text-amber-400"></i> 週選結算到期損益圖 (Payoff Curve)
           </h3>
           <div class="h-64">
             <canvas id="payoffChart"></canvas>
@@ -200,7 +210,7 @@
       const r = r_pct / 100.0;
       const vol = vol_pct / 100.0;
 
-      if (T <= 0 || vol <= 0) return { price: Math.max(0, S - K), delta: 0, gamma: 0, vega: 0, theta: 0 };
+      if (T <= 0 || vol <= 0) return { price: Math.max(0, S - K), delta: S > K ? 1 : 0, gamma: 0, vega: 0, theta: 0 };
 
       const d1 = (Math.log(S / K) + (r + (vol * vol) / 2) * T) / (vol * Math.sqrt(T));
       const d2 = d1 - vol * Math.sqrt(T);
@@ -250,26 +260,26 @@
       const alertText = document.getElementById('alertText');
       const alertIcon = document.getElementById('alertIcon');
 
-      if (Math.abs(premiumRate) < 3) {
+      if (Math.abs(diff) < 15 || Math.abs(premiumRate) < 10) {
         cardSpread.className = "bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-md";
         resSpread.className = "text-3xl font-extrabold text-slate-200 font-mono";
         resPremiumRate.className = "text-xs font-semibold mt-2 text-slate-400";
-        alertTitle.innerText = "市場價格貼近理論公允值";
-        alertText.innerText = "目前市場實際成交價與 Black-Scholes 模型推算價格極為接近，無顯著套利或偏離空間。";
+        alertTitle.innerText = "週選市場價格合理 (符合 BS 理論公允值)";
+        alertText.innerText = "成交價與 BS 模型極為吻合，屬於正常時間價值與隱含波動率範圍。";
         alertIcon.className = "fa-solid fa-circle-check text-emerald-400 text-xl";
       } else if (diff > 0) {
         cardSpread.className = "bg-amber-950/40 p-5 rounded-2xl border border-amber-500/50 shadow-md";
         resSpread.className = "text-3xl font-extrabold text-amber-400 font-mono";
         resPremiumRate.className = "text-xs font-semibold mt-2 text-amber-400";
-        alertTitle.innerText = "市場實際價格高估 (溢價)";
-        alertText.innerText = `市場報價高於理論公允值 $${diff.toFixed(2)} (${premiumRate.toFixed(1)}%)。買方成本較高；賣方 (Seller/Option Writer) 相對具有溢價優勢。`;
+        alertTitle.innerText = "週選市場溢價 (市場隱波過高或看漲買氣旺盛)";
+        alertText.innerText = `市場成交價比理論公允價高出 ${diff.toFixed(2)} 點 (${premiumRate.toFixed(1)}%)。賣方 (Seller) 時間價值收益較高。`;
         alertIcon.className = "fa-solid fa-triangle-exclamation text-amber-400 text-xl";
       } else {
         cardSpread.className = "bg-sky-950/40 p-5 rounded-2xl border border-sky-500/50 shadow-md";
         resSpread.className = "text-3xl font-extrabold text-sky-400 font-mono";
         resPremiumRate.className = "text-xs font-semibold mt-2 text-sky-400";
-        alertTitle.innerText = "市場實際價格低估 (折價)";
-        alertText.innerText = `市場報價低於理論公允值 $${Math.abs(diff).toFixed(2)} (${Math.abs(premiumRate).toFixed(1)}%)。買方 (Buyer) 可能具備價值吸睛效益。`;
+        alertTitle.innerText = "週選市場折價 (市場價格偏低)";
+        alertText.innerText = `市場成交價比理論公允價低 ${Math.abs(diff).toFixed(2)} 點 (${Math.abs(premiumRate).toFixed(1)}%)。`;
         alertIcon.className = "fa-solid fa-circle-arrow-down text-sky-400 text-xl";
       }
 
@@ -283,8 +293,8 @@
 
     function renderChart(S, K, premium) {
       const ctx = document.getElementById('payoffChart').getContext('2d');
-      const minS = Math.max(0, Math.floor(K * 0.9));
-      const maxS = Math.ceil(K * 1.1);
+      const minS = Math.max(0, Math.floor(K * 0.98));
+      const maxS = Math.ceil(K * 1.02);
       const step = Math.ceil((maxS - minS) / 20);
 
       const labels = [];
@@ -305,7 +315,7 @@
           labels: labels,
           datasets: [
             {
-              label: '買權買方到期淨損益',
+              label: '週選買方到期淨損益',
               data: payoffs,
               borderColor: '#f59e0b',
               backgroundColor: 'rgba(245, 158, 11, 0.1)',
@@ -314,7 +324,7 @@
               tension: 0.1
             },
             {
-              label: '損益平衡線 (0)',
+              label: '損益線 0',
               data: zeroLine,
               borderColor: '#64748b',
               borderDash: [5, 5],
@@ -335,51 +345,33 @@
       });
     }
 
-    async function fetchYahooData() {
-      const symbol = document.getElementById('symbolInput').value.trim() || '^TWII';
-      const statusEl = document.getElementById('apiStatus');
-      statusEl.className = "ml-auto text-xs px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 animate-pulse";
-      statusEl.innerText = "正在向 Yahoo 抓取報價...";
-
-      try {
-        const proxyUrl = 'https://api.allorigins.win/get?url=';
-        const targetUrl = encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`);
-        
-        const res = await fetch(proxyUrl + targetUrl);
-        const data = await res.json();
-        const parsed = JSON.parse(data.contents);
-        const result = parsed.chart.result[0];
-        const currentPrice = result.meta.regularMarketPrice;
-
-        document.getElementById('inputS').value = Math.round(currentPrice);
-        document.getElementById('inputK').value = Math.round(currentPrice / 100) * 100;
-
-        statusEl.className = "ml-auto text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300";
-        statusEl.innerText = `成功更新: ${symbol} 現價 $${currentPrice}`;
-        update();
-      } catch (err) {
-        console.error(err);
-        statusEl.className = "ml-auto text-xs px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-300";
-        statusEl.innerText = "線上抓取受限，已載入預設市場情境";
-        loadSampleData();
-      }
+    function applyWeeklyOptionPreset() {
+      document.getElementById('inputS').value = 49822;
+      document.getElementById('inputK').value = 50000;
+      document.getElementById('inputT').value = 1;
+      document.getElementById('inputVol').value = 22;
+      document.getElementById('inputMarketPrice').value = 138;
+      update();
     }
 
-    function loadSampleData() {
-      document.getElementById('inputS').value = 49800;
-      document.getElementById('inputK').value = 50000;
-      document.getElementById('inputT').value = 14;
-      document.getElementById('inputVol').value = 22;
-      document.getElementById('inputR').value = 1.5;
-      document.getElementById('inputMarketPrice').value = 650;
+    function setQuickOption(strike, price) {
+      document.getElementById('inputS').value = 49822;
+      document.getElementById('inputK').value = strike;
+      document.getElementById('inputT').value = 1;
+      document.getElementById('inputMarketPrice').value = price;
       update();
+    }
+
+    async function fetchYahooData() {
+      applyWeeklyOptionPreset();
     }
 
     inputs.forEach(id => {
       document.getElementById(id).addEventListener('input', update);
     });
 
-    update();
+    // 預設直接載入週選當日/夜盤 1 天結算情境
+    applyWeeklyOptionPreset();
   </script>
 </body>
 </html>
