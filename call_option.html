@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>買權（Call Option）計算與分析工具</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d',
+                        },
+                        darkBg: '#0f172a',
+                        cardBg: '#1e293b',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-12">
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                    <i class="fa-solid fa-chart-line text-slate-950 font-bold text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-slate-100">Call Option 買權計算器</h1>
+                    <p class="text-xs text-slate-400">Black-Scholes 模型與情境分析工具</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> 即時計算中
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- Left Side: Input Panel (4 columns) -->
+            <div class="lg:col-span-4 space-y-6">
+                <div class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-6 backdrop-blur shadow-xl">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-lg font-semibold text-slate-100 flex items-center gap-2">
+                            <i class="fa-sliders text-emerald-400"></i> 參數設定
+                        </h2>
+                        <button id="resetBtn" class="text-xs text-slate-400 hover:text-emerald-400 transition flex items-center gap-1">
+                            <i class="fa-rotate-right"></i> 重設
+                        </button>
+                    </div>
+
+                    <form id="optionForm" class="space-y-4" onsubmit="event.preventDefault();">
+                        <!-- Stock Price S -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1.5">
+                                <label for="stockPrice" class="text-slate-300 font-medium">標的資產現價 (S)</label>
+                                <span id="stockPriceVal" class="text-emerald-400 font-semibold">$100.00</span>
+                            </div>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2.5 text-slate-500">$</span>
+                                <input type="number" id="stockPrice" value="100" step="0.5" min="0.1" class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 text-sm">
+                            </div>
+                            <input type="range" id="stockPriceSlider" min="10" max="300" value="100" step="1" class="w-full mt-2 accent-emerald-500 cursor-pointer">
+                        </div>
+
+                        <!-- Strike Price K -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1.5">
+                                <label for="strikePrice" class="text-slate-300 font-medium">履約價格 (K)</label>
+                                <span id="strikePriceVal" class="text-slate-300">$100.00</span>
+                            </div>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2.5 text-slate-500">$</span>
+                                <input type="number" id="strikePrice" value="100" step="0.5" min="0.1" class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 text-sm">
+                            </div>
+                        </div>
+
+                        <!-- Days to Expiration -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1.5">
+                                <label for="daysToExpire" class="text-slate-300 font-medium">到期天數 (t 天)</label>
+                                <span id="daysVal" class="text-slate-300">30 天</span>
+                            </div>
+                            <div class="relative">
+                                <input type="number" id="daysToExpire" value="30" step="1" min="1" max="1095" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 text-sm">
+                                <span class="absolute right-3 top-2.5 text-slate-500 text-xs">≈ 0.08 年</span>
+                            </div>
+                        </div>
+
+                        <!-- Volatility sigma -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1.5">
+                                <label for="volatility" class="text-slate-300 font-medium">年化波動率 (σ)</label>
+                                <span id="volatilityVal" class="text-emerald-400 font-semibold">25.0%</span>
+                            </div>
+                            <div class="relative">
+                                <input type="number" id="volatility" value="25" step="0.5" min="0.1" max="500" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 text-sm">
+                                <span class="absolute right-3 top-2.5 text-slate-500 text-xs">%</span>
+                            </div>
+                            <input type="range" id="volatilitySlider" min="1" max="150" value="25" step="1" class="w-full mt-2 accent-emerald-500 cursor-pointer">
+                        </div>
+
+                        <!-- Risk-free Rate r -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1.5">
+                                <label for="riskFreeRate" class="text-slate-300 font-medium">無風險利率 (r)</label>
+                                <span id="rateVal" class="text-slate-300">4.5%</span>
+                            </div>
+                            <div class="relative">
+                                <input type="number" id="riskFreeRate" value="4.5" step="0.1" min="0" max="50" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 text-sm">
+                                <span class="absolute right-3 top-2.5 text-slate-500 text-xs">%</span>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Info Box -->
+                <div class="bg-slate-800/40 border border-slate-800 rounded-2xl p-5 text-xs text-slate-400 space-y-2">
+                    <div class="flex items-center gap-2 font-semibold text-slate-300">
+                        <i class="fa-solid fa-circle-info text-teal-400"></i> 小提示：
+                    </div>
+                    <p>• 拖曳滑桿可模擬資產現價與波動率變化對買權價值的動態影響。</p>
+                    <p>• 本計算器採用 Black-Scholes 歐式買權模型，無額外股利扣除。</p>
+                </div>
+            </div>
+
+            <!-- Right Side: Results & Charts (8 columns) -->
+            <div class="lg:col-span-8 space-y-6">
+                
+                <!-- Main Value Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Call Price Card -->
+                    <div class="bg-gradient-to-br from-slate-800 to-slate-900 border border-emerald-500/30 rounded-2xl p-5 shadow-lg relative overflow-hidden group">
+                        <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl group-hover:bg-emerald-500/20 transition-all"></div>
+                        <span class="text-xs font-semibold text-emerald-400 tracking-wider uppercase">理論買權價格 (Call Price)</span>
+                        <div class="text-3xl font-bold text-white mt-2" id="callPriceDisplay">$0.00</div>
+                        <div class="text-xs text-slate-400 mt-2 flex items-center gap-1">
+                            權利金總價: <span id="contractTotalDisplay" class="text-slate-200 font-medium">$0.00</span> (單合約 100 股)
+                        </div>
+                    </div>
+
+                    <!-- Break-even Price Card -->
+                    <div class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-5 shadow-lg">
+                        <span class="text-xs font-semibold text-slate-400 tracking-wider uppercase">損益平衡點 (Break-even)</span>
+                        <div class="text-3xl font-bold text-teal-300 mt-2" id="breakevenDisplay">$0.00</div>
+                        <div class="text-xs text-slate-400 mt-2">
+                            現價距保本點: <span id="breakevenDiffDisplay" class="font-medium text-slate-200">+0.00%</span>
+                        </div>
+                    </div>
+
+                    <!-- Moneyness Status Card -->
+                    <div class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-5 shadow-lg flex flex-col justify-between">
+                        <span class="text-xs font-semibold text-slate-400 tracking-wider uppercase">價內/價外狀態</span>
+                        <div id="moneynessBadge" class="mt-2 inline-flex items-center px-3 py-1 rounded-full text-sm font-bold w-max bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            價內 (ITM)
+                        </div>
+                        <div class="text-xs text-slate-400 mt-2" id="intrinsicValueDisplay">
+                            內在價值: $0.00 | 時間價值: $0.00
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Greeks Grid -->
+                <div class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-6 shadow-xl">
+                    <h3 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-square-poll-vertical text-emerald-400"></i> 希臘字母分析 (Greeks)
+                    </h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <!-- Delta -->
+                        <div class="bg-slate-900/60 rounded-xl p-3 border border-slate-700/40">
+                            <div class="flex justify-between items-center text-xs text-slate-400">
+                                <span>Delta (Δ)</span>
+                                <i class="fa-solid fa-circle-info text-slate-600" title="現價每變動 $1，權利金變動量"></i>
+                            </div>
+                            <div class="text-xl font-bold text-slate-100 mt-1" id="greekDelta">0.00</div>
+                            <div class="text-[10px] text-slate-500 mt-1">對應避險比率</div>
+                        </div>
+                        <!-- Gamma -->
+                        <div class="bg-slate-900/60 rounded-xl p-3 border border-slate-700/40">
+                            <div class="flex justify-between items-center text-xs text-slate-400">
+                                <span>Gamma (γ)</span>
+                                <i class="fa-solid fa-circle-info text-slate-600" title="現價每變動 $1，Delta 的變動量"></i>
+                            </div>
+                            <div class="text-xl font-bold text-slate-100 mt-1" id="greekGamma">0.00</div>
+                            <div class="text-[10px] text-slate-500 mt-1">Delta 敏感度</div>
+                        </div>
+                        <!-- Vega -->
+                        <div class="bg-slate-900/60 rounded-xl p-3 border border-slate-700/40">
+                            <div class="flex justify-between items-center text-xs text-slate-400">
+                                <span>Vega (ν)</span>
+                                <i class="fa-solid fa-circle-info text-slate-600" title="波動率每變動 1%，權利金變動量"></i>
+                            </div>
+                            <div class="text-xl font-bold text-slate-100 mt-1" id="greekVega">0.00</div>
+                            <div class="text-[10px] text-slate-500 mt-1">波動率敏感度</div>
+                        </div>
+                        <!-- Theta -->
+                        <div class="bg-slate-900/60 rounded-xl p-3 border border-slate-700/40">
+                            <div class="flex justify-between items-center text-xs text-slate-400">
+                                <span>Theta (θ)</span>
+                                <i class="fa-solid fa-circle-info text-slate-600" title="每日時間流逝導致的權利金損耗"></i>
+                            </div>
+                            <div class="text-xl font-bold text-rose-400 mt-1" id="greekTheta">0.00</div>
+                            <div class="text-[10px] text-slate-500 mt-1">每日時間流耗</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart Container -->
+                <div class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-6 shadow-xl">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                        <div>
+                            <h3 class="text-base font-semibold text-slate-100">買權損益與理論價值曲線 (Payoff Chart)</h3>
+                            <p class="text-xs text-slate-400">比較「到期日淨損益」與「當前理論價格曲線」</p>
+                        </div>
+                        <div class="flex items-center gap-4 text-xs">
+                            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-emerald-400"></span> 到期淨損益</span>
+                            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-teal-300 border border-dashed"></span> 當前理論價格</span>
+                        </div>
+                    </div>
+                    <div class="relative h-72 w-full">
+                        <canvas id="payoffChart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Normal Distribution Cumulative Distribution Function (CDF)
+        function stdNormalCDF(x) {
+            let t = 1 / (1 + 0.2316419 * Math.abs(x));
+            let d = 0.3989423 * Math.exp(-x * x / 2);
+            let prob = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+            if (x > 0) prob = 1 - prob;
+            return prob;
+        }
+
+        // Normal Distribution Probability Density Function (PDF)
+        function stdNormalPDF(x) {
+            return Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
+        }
+
+        // Black-Scholes Call Option Price and Greeks Calculation
+        function calculateBlackScholes(S, K, T, r, sigma) {
+            if (T <= 0 || sigma <= 0) {
+                const intrinsic = Math.max(0, S - K);
+                return {
+                    price: intrinsic,
+                    delta: S > K ? 1 : 0,
+                    gamma: 0,
+                    vega: 0,
+                    theta: 0,
+                    d1: 0,
+                    d2: 0
+                };
+            }
+
+            const d1 = (Math.log(S / K) + (r + (sigma * sigma) / 2) * T) / (sigma * Math.sqrt(T));
+            const d2 = d1 - sigma * Math.sqrt(T);
+
+            const Nd1 = stdNormalCDF(d1);
+            const Nd2 = stdNormalCDF(d2);
+            const npd1 = stdNormalPDF(d1);
+
+            // Call Option Price
+            const price = S * Nd1 - K * Math.exp(-r * T) * Nd2;
+
+            // Greeks
+            const delta = Nd1;
+            const gamma = npd1 / (S * sigma * Math.sqrt(T));
+            const vega = (S * npd1 * Math.sqrt(T)) / 100; // per 1% change
+            const theta = (-(S * npd1 * sigma) / (2 * Math.sqrt(T)) - r * K * Math.exp(-r * T) * Nd2) / 365; // per day
+
+            return { price, delta, gamma, vega, theta, d1, d2 };
+        }
+
+        // DOM elements initialization
+        const inputs = {
+            stockPrice: document.getElementById('stockPrice'),
+            stockPriceSlider: document.getElementById('stockPriceSlider'),
+            strikePrice: document.getElementById('strikePrice'),
+            daysToExpire: document.getElementById('daysToExpire'),
+            volatility: document.getElementById('volatility'),
+            volatilitySlider: document.getElementById('volatilitySlider'),
+            riskFreeRate: document.getElementById('riskFreeRate')
+        };
+
+        const displays = {
+            stockPriceVal: document.getElementById('stockPriceVal'),
+            strikePriceVal: document.getElementById('strikePriceVal'),
+            daysVal: document.getElementById('daysVal'),
+            volatilityVal: document.getElementById('volatilityVal'),
+            rateVal: document.getElementById('rateVal'),
+            callPriceDisplay: document.getElementById('callPriceDisplay'),
+            contractTotalDisplay: document.getElementById('contractTotalDisplay'),
+            breakevenDisplay: document.getElementById('breakevenDisplay'),
+            breakevenDiffDisplay: document.getElementById('breakevenDiffDisplay'),
+            moneynessBadge: document.getElementById('moneynessBadge'),
+            intrinsicValueDisplay: document.getElementById('intrinsicValueDisplay'),
+            greekDelta: document.getElementById('greekDelta'),
+            greekGamma: document.getElementById('greekGamma'),
+            greekVega: document.getElementById('greekVega'),
+            greekTheta: document.getElementById('greekTheta')
+        };
+
+        let payoffChart = null;
+
+        function initChart() {
+            const ctx = document.getElementById('payoffChart').getContext('2d');
+            payoffChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: '到期損益 (Payoff)',
+                            data: [],
+                            borderColor: '#22c55e',
+                            borderWidth: 2,
+                            fill: false,
+                            tension: 0,
+                            pointRadius: 0
+                        },
+                        {
+                            label: '當前理論價值 (Call Value)',
+                            data: [],
+                            borderColor: '#5eead4',
+                            borderWidth: 2,
+                            borderDash: [4, 4],
+                            fill: false,
+                            tension: 0.2,
+                            pointRadius: 0
+                        },
+                        {
+                            label: '損益平衡基準 (零線)',
+                            data: [],
+                            borderColor: '#475569',
+                            borderWidth: 1,
+                            pointRadius: 0,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index',
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: '#334155' },
+                            ticks: { color: '#94a3b8' },
+                            title: { display: true, text: '到期標的資產價格 ($)', color: '#94a3b8' }
+                        },
+                        y: {
+                            grid: { color: '#334155' },
+                            ticks: { color: '#94a3b8' },
+                            title: { display: true, text: '損益 ($)', color: '#94a3b8' }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1e293b',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#cbd5e1',
+                            borderColor: '#475569',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: $${context.raw.toFixed(2)}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateAll() {
+            const S = parseFloat(inputs.stockPrice.value) || 0;
+            const K = parseFloat(inputs.strikePrice.value) || 0;
+            const days = parseFloat(inputs.daysToExpire.value) || 0;
+            const T = days / 365;
+            const sigma = (parseFloat(inputs.volatility.value) || 0) / 100;
+            const r = (parseFloat(inputs.riskFreeRate.value) || 0) / 100;
+
+            // Sync sliders
+            inputs.stockPriceSlider.value = S;
+            inputs.volatilitySlider.value = inputs.volatility.value;
+
+            // Sync text display values
+            displays.stockPriceVal.textContent = `$${S.toFixed(2)}`;
+            displays.strikePriceVal.textContent = `$${K.toFixed(2)}`;
+            displays.daysVal.textContent = `${days} 天`;
+            displays.volatilityVal.textContent = `${(sigma * 100).toFixed(1)}%`;
+            displays.rateVal.textContent = `${(r * 100).toFixed(1)}%`;
+
+            // Calculate BS Model
+            const bs = calculateBlackScholes(S, K, T, r, sigma);
+
+            // Display Results
+            displays.callPriceDisplay.textContent = `$${bs.price.toFixed(2)}`;
+            displays.contractTotalDisplay.textContent = `$${(bs.price * 100).toFixed(2)}`;
+
+            const breakeven = K + bs.price;
+            displays.breakevenDisplay.textContent = `$${breakeven.toFixed(2)}`;
+            const diffPct = ((breakeven - S) / S) * 100;
+            displays.breakevenDiffDisplay.textContent = `${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(2)}%`;
+
+            // Intrinsic & Time value
+            const intrinsic = Math.max(0, S - K);
+            const timeValue = Math.max(0, bs.price - intrinsic);
+            displays.intrinsicValueDisplay.textContent = `內在價值: $${intrinsic.toFixed(2)} | 時間價值: $${timeValue.toFixed(2)}`;
+
+            // Moneyness badge
+            if (S > K * 1.005) {
+                displays.moneynessBadge.className = "mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold w-max bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                displays.moneynessBadge.textContent = "價內 (ITM)";
+            } else if (S < K * 0.995) {
+                displays.moneynessBadge.className = "mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold w-max bg-rose-500/20 text-rose-400 border border-rose-500/30";
+                displays.moneynessBadge.textContent = "價外 (OTM)";
+            } else {
+                displays.moneynessBadge.className = "mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold w-max bg-amber-500/20 text-amber-400 border border-amber-500/30";
+                displays.moneynessBadge.textContent = "價平 (ATM)";
+            }
+
+            // Greeks
+            displays.greekDelta.textContent = bs.delta.toFixed(3);
+            displays.greekGamma.textContent = bs.gamma.toFixed(4);
+            displays.greekVega.textContent = bs.vega.toFixed(3);
+            displays.greekTheta.textContent = bs.theta.toFixed(3);
+
+            // Update Chart
+            updateChart(S, K, T, r, sigma, bs.price);
+        }
+
+        function updateChart(S, K, T, r, sigma, optionPremium) {
+            const minPrice = Math.max(0, Math.floor(K * 0.5));
+            const maxPrice = Math.ceil(K * 1.5);
+            const step = Math.max(1, Math.round((maxPrice - minPrice) / 30));
+
+            const labels = [];
+            const payoffData = [];
+            const currentTheoryData = [];
+            const zeroData = [];
+
+            for (let price = minPrice; price <= maxPrice; price += step) {
+                labels.push(price);
+                // Expiration payoff (Profit/Loss = Max(0, S_T - K) - Premium)
+                const payoff = Math.max(0, price - K) - optionPremium;
+                payoffData.push(payoff);
+
+                // Current Theory value - Premium
+                const curBs = calculateBlackScholes(price, K, T, r, sigma);
+                currentTheoryData.push(curBs.price - optionPremium);
+
+                zeroData.push(0);
+            }
+
+            payoffChart.data.labels = labels;
+            payoffChart.data.datasets[0].data = payoffData;
+            payoffChart.data.datasets[1].data = currentTheoryData;
+            payoffChart.data.datasets[2].data = zeroData;
+            payoffChart.update();
+        }
+
+        // Bind events
+        Object.keys(inputs).forEach(key => {
+            inputs[key].addEventListener('input', (e) => {
+                if (key === 'stockPriceSlider') {
+                    inputs.stockPrice.value = e.target.value;
+                } else if (key === 'volatilitySlider') {
+                    inputs.volatility.value = e.target.value;
+                }
+                updateAll();
+            });
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            inputs.stockPrice.value = 100;
+            inputs.strikePrice.value = 100;
+            inputs.daysToExpire.value = 30;
+            inputs.volatility.value = 25;
+            inputs.riskFreeRate.value = 4.5;
+            updateAll();
+        });
+
+        // Initialize on load
+        window.onload = function() {
+            initChart();
+            updateAll();
+        };
+    </script>
+</body>
+</html>
